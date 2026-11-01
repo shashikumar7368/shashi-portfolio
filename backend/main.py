@@ -1,27 +1,20 @@
 
 import os
-import smtplib
-import traceback
+import resend
 
-from email.message import EmailMessage
 from dotenv import load_dotenv
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
-
 
 # Load environment variables
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-
-# Create FastAPI application
 app = FastAPI(
     title="Shashi Portfolio API",
     version="1.0.0"
 )
-
 
 # React frontend connection
 app.add_middleware(
@@ -43,25 +36,23 @@ class ContactMessage(BaseModel):
     message: str = Field(min_length=5, max_length=3000)
 
 
-# Gmail notification function
+# Resend email function
 def send_email(data: ContactMessage):
 
-    sender = os.getenv("SMTP_EMAIL")
-    password = os.getenv("SMTP_APP_PASSWORD")
+    api_key = os.getenv("RESEND_API_KEY")
     receiver = os.getenv("NOTIFICATION_EMAIL")
 
-    if not sender or not password or not receiver:
-        raise RuntimeError("Email configuration is missing.")
+    if not api_key or not receiver:
+        raise RuntimeError("Resend configuration is missing.")
 
-    email = EmailMessage()
+    resend.api_key = api_key
 
-    email["Subject"] = f"New Portfolio Message from {data.name}"
-    email["From"] = sender
-    email["To"] = receiver
-    email["Reply-To"] = str(data.email)
-
-    email.set_content(
-        f"""
+    params = {
+        "from": "Shashi Portfolio <onboarding@resend.dev>",
+        "to": [receiver],
+        "reply_to": str(data.email),
+        "subject": f"New Portfolio Message from {data.name}",
+        "text": f"""
 New message received from your portfolio!
 
 Name: {data.name}
@@ -70,31 +61,16 @@ Email: {data.email}
 Message:
 {data.message}
 """
-    )
+    }
 
-    print("Connecting to Gmail...")
+    result = resend.Emails.send(params)
 
-    with smtplib.SMTP_SSL(
-        "smtp.gmail.com",
-        465,
-        timeout=30
-    ) as smtp:
-
-        print("Step A: Gmail connection established")
-
-        smtp.login(sender, password)
-
-        print("Step B: Gmail authentication successful")
-
-        smtp.send_message(email)
-
-        print("Step C: Email sent successfully")
+    print("Resend email sent:", result)
 
 
 # Home route
 @app.get("/")
 def home():
-
     return {
         "success": True,
         "message": "Shashi Portfolio API is running!"
@@ -108,10 +84,8 @@ async def receive_contact(data: ContactMessage):
     print("\nNew Contact Message Received!")
     print("Name:", data.name)
     print("Email:", data.email)
-    print("Message:", data.message)
 
     try:
-
         send_email(data)
 
         return {
@@ -120,9 +94,7 @@ async def receive_contact(data: ContactMessage):
         }
 
     except Exception as error:
-
         print("Email sending error:", error)
-        traceback.print_exc()
 
         raise HTTPException(
             status_code=500,

@@ -37,7 +37,7 @@ function Contact() {
     try {
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/contact",
+        "https://shashi-portfolio-gorp.onrender.com/api/contact",
         {
           method: "POST",
           headers: {
